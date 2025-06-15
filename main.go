@@ -1,35 +1,18 @@
 package main // Declare the main package
 
 import (
-	"bytes"                 // Support bytes package.
-	"fmt"                   // For formatted I/O
-	"golang.org/x/net/html" // For data processing HTML
-	"io"                    // For I/O operations
-	"log"                   // For logging errors and info
-	"net/http"              // For making HTTP requests
-	"net/url"               // For URL parsing and validation
-	"os"                    // For file operations
-	"path/filepath"         // For the file path in the systems.
-	"strings"               // For string manipulation
-	"time"                  // For time management
+	"bytes"         // Support bytes package.
+	"fmt"           // For formatted I/O
+	"io"            // For I/O operations
+	"log"           // For logging errors and info
+	"net/http"      // For making HTTP requests
+	"net/url"       // For URL parsing and validation
+	"os"            // For file operations
+	"path/filepath" // For the file path in the systems.
+	"regexp"        //
+	"strings"       // For string manipulation
+	"time"          // For time management
 )
-
-// Define the structs
-
-// Variant represents an individual download URL variant
-type Variant struct {
-	DownloadURL string `json:"downloadUrl"` // JSON key: downloadUrl
-}
-
-// Result contains a slice of Variant structs
-type Result struct {
-	Variants []Variant `json:"variants"` // JSON key: variants
-}
-
-// Data is the top-level struct containing results
-type Data struct {
-	Results []Result `json:"results"` // JSON key: results
-}
 
 // removeDuplicatesFromSlice removes duplicate strings from a slice
 func removeDuplicatesFromSlice(slice []string) []string {
@@ -221,34 +204,25 @@ func createDirectory(path string, permission os.FileMode) {
 	}
 }
 
-// extractPDFLinks takes an HTML string and returns all .pdf URLs found in <a href="..."> tags.
-// If parsing fails, it simply returns an empty slice.
+// extractPDFLinks scans htmlContent line by line and returns all unique .pdf URLs.
 func extractPDFLinks(htmlContent string) []string {
-	var pdfLinks []string
+	// Regex to match http(s) URLs ending in .pdf (with optional query/fragments)
+	pdfRegex := regexp.MustCompile(`https?://[^\s"'<>]+?\.pdf(?:\?[^\s"'<>]*)?`)
 
-	reader := strings.NewReader(htmlContent)
-	rootNode, err := html.Parse(reader)
-	if err != nil {
-		return pdfLinks // Return empty if parsing fails
-	}
+	seen := make(map[string]struct{})
+	var links []string
 
-	// Recursively walk the HTML tree
-	var walk func(*html.Node)
-	walk = func(node *html.Node) {
-		if node.Type == html.ElementNode && node.Data == "a" {
-			for _, attr := range node.Attr {
-				if attr.Key == "href" && strings.HasSuffix(strings.ToLower(attr.Val), ".pdf") {
-					pdfLinks = append(pdfLinks, attr.Val)
-				}
+	// Process each line separately
+	for _, line := range strings.Split(htmlContent, "\n") {
+		for _, match := range pdfRegex.FindAllString(line, -1) {
+			if _, ok := seen[match]; !ok {
+				seen[match] = struct{}{}
+				links = append(links, match)
 			}
 		}
-		for child := node.FirstChild; child != nil; child = child.NextSibling {
-			walk(child)
-		}
 	}
 
-	walk(rootNode)
-	return pdfLinks
+	return links
 }
 
 func main() {
@@ -270,6 +244,8 @@ func main() {
 	fileContent := readFileAndReturnAsString(filename)
 	// Get all the pdf urls
 	extractedURL = extractPDFLinks(fileContent)
+	log.Println(len(extractedURL))
+	// os.Exit(0)
 	// Remove duplicates
 	extractedURL = removeDuplicatesFromSlice(extractedURL) // Remove duplicate URLs
 	outputDir := "PDFs/"                                   // Directory to store downloaded PDFs
