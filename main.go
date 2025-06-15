@@ -288,11 +288,7 @@ func main() {
 			downloadCounter = downloadCounter + 1
 		}
 		if err != nil {
-			errorString := err.Error()
-			log.Println(errorString)
-			if strings.Contains(errorString, "429") {
-				break
-			}
+			log.Println(err)
 		}
 	}
 }
